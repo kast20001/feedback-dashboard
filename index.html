@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дашборд ОС ФТМИ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --color-fg: #10162B; --color-fg-muted: #5A6278; --color-bg: #F6F7FB; --color-panel: #FFFFFF;
+  --color-border-line: #DDE1EC; --color-ok: #138A52; --color-warn: #B87A00; --color-bad: #D23A3A;
+  --cds-text-secondary: #5A6278; --cds-chart-grid: #E6E9F2; --cds-chart-axis: #A9B0C3; --cds-chart-reference: #7C8499;
+  --cds-chart-muted: #A9B0C3; --cds-chart-status-critical: #D23A3A;
+  --cds-surface-popover: #FFFFFF; --cds-border: #DDE1EC; --cds-shadow-popover: 0 6px 24px rgba(16, 22, 43, .14);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-fg: #E8EBF5; --color-fg-muted: #9AA2B8; --color-bg: #0C1020; --color-panel: #141A2E;
+    --color-border-line: #263052; --color-ok: #3CC487; --color-warn: #E7B23A; --color-bad: #FF6B6B;
+    --cds-text-secondary: #9AA2B8; --cds-chart-grid: #1E2744; --cds-chart-axis: #4A5578; --cds-chart-reference: #8A93AD;
+    --cds-chart-muted: #5C6788; --cds-chart-status-critical: #FF6B6B;
+    --cds-surface-popover: #1A2140; --cds-border: #2E3A60; --cds-shadow-popover: 0 6px 24px rgba(0, 0, 0, .5);
+    color-scheme: dark;
+  }
+}
+:root {
+  --font-anthropic-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-anthropic-serif: "Inter", system-ui, sans-serif;
+  --cds-font-size-caption: 12px; --cds-font-size-body: 14px; --cds-font-size-heading: 18px; --cds-font-size-title: 28px;
+  --cds-font-weight-medium: 500;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 16px; --cds-gap-xl: 28px;
+  --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 16px; --cds-pad-xl: 28px;
+  --cds-radius: 6px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-fg); font: 14px/1.5 var(--font-anthropic-sans); }
+#dash-root { max-width: 1240px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+.dash-select {
+  font: inherit; color: var(--color-fg); background-color: var(--color-panel); border: 1px solid var(--color-border-line);
+  border-radius: 3px; padding: 7px 32px 7px 10px; appearance: none; -webkit-appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.dash-select:focus-visible { outline: 2px solid #1F4BFF; outline-offset: 2px; }
+.os-foot { margin-top: 32px; color: var(--color-fg-muted); font-size: 12px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/dash-runtime.js"></script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+/* Tech look: cobalt accent mixed toward the theme's text color, so it reads in light and dark; grid texture; mono labels. */
+.os {
+  --os-blue: color-mix(in srgb, #1F4BFF 82%, var(--color-fg));
+  --os-cyan: color-mix(in srgb, #00A9E0 80%, var(--color-fg));
+  --os-violet: color-mix(in srgb, #7357FF 82%, var(--color-fg));
+  --os-on-blue: #FFFFFF;
+  --os-mono: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --os-sharp: 3px;
+  display: flex; flex-direction: column; gap: var(--cds-gap-xl);
+  font-family: var(--font-anthropic-sans); color: var(--color-fg);
+}
+.os [hidden] { display: none !important; }
+.os p { margin: 0; }
+.os h2 { font-size: var(--cds-font-size-heading); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.os-band {
+  position: relative; overflow: hidden; border-radius: var(--os-sharp);
+  background-color: #1F4BFF; color: var(--os-on-blue);
+  background-image: linear-gradient(rgba(255,255,255,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.10) 1px, transparent 1px);
+  background-size: 24px 24px;
+  padding: var(--cds-pad-xl) var(--cds-pad-lg);
+  display: flex; flex-direction: column; gap: var(--cds-gap-sm);
+}
+.os-band::after { content: ""; position: absolute; right: -40px; top: -40px; width: 180px; height: 180px; border: 2px solid rgba(255,255,255,.35); transform: rotate(45deg); }
+.os-band .os-eyebrow { font-family: var(--os-mono); font-size: var(--cds-font-size-caption); letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+.os-band h1 { margin: 0; font-size: clamp(24px, 4vw, 36px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; max-width: 22ch; }
+.os-band .os-lead { max-width: 70ch; font-size: var(--cds-font-size-body); position: relative; z-index: 1; }
+.os-band b { font-family: var(--os-mono); font-weight: 700; }
+.os-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; justify-content: space-between; }
+.os-filters { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; }
+.os-filters .dash-select { min-width: 0; max-width: 100%; }
+.os-btn { font: inherit; font-family: var(--os-mono); font-size: var(--cds-font-size-caption); text-transform: uppercase; letter-spacing: .06em; background: none; border: 1px solid var(--color-border-line); border-radius: var(--os-sharp); padding: 7px 12px; color: var(--color-fg); cursor: pointer; }
+.os-btn:hover { border-color: var(--os-blue); }
+.os-btn:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 2px; }
+.os-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--os-blue); }
+.os-tab { font: inherit; font-family: var(--os-mono); font-size: var(--cds-font-size-body); letter-spacing: .04em; text-transform: uppercase; background: none; border: 0; padding: 10px 18px; color: var(--color-fg-muted); cursor: pointer; border-radius: var(--os-sharp) var(--os-sharp) 0 0; }
+.os-tab:hover { color: var(--color-fg); }
+.os-tab:focus-visible { outline: 2px solid var(--os-blue); outline-offset: -2px; }
+.os-tab.on { background: #1F4BFF; color: var(--os-on-blue); }
+.os-tab .n { opacity: .6; margin-right: 6px; }
+.os-page { display: flex; flex-direction: column; gap: var(--cds-gap-xl); }
+.os-sec { display: flex; flex-direction: column; gap: var(--cds-gap-md); }
+.os-sec-head { display: flex; flex-direction: column; gap: 4px; padding-left: 12px; border-left: 3px solid var(--os-blue); }
+.os-tag { font-family: var(--os-mono); font-size: var(--cds-font-size-caption); color: var(--os-blue); letter-spacing: .08em; text-transform: uppercase; }
+.os-muted { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); max-width: 80ch; }
+.os-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--cds-gap-sm); }
+.os-tile { position: relative; background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--os-sharp); padding: var(--cds-pad-lg); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.os-tile::before { content: ""; position: absolute; left: -1px; top: -1px; width: 14px; height: 14px; border-left: 2px solid var(--os-blue); border-top: 2px solid var(--os-blue); }
+.os-tile-label { font-family: var(--os-mono); font-size: 11px; color: var(--color-fg-muted); text-transform: uppercase; letter-spacing: .06em; }
+.os-tile-value { font-family: var(--os-mono); font-weight: 700; font-size: 30px; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.os-tile-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.os-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--cds-gap-xl); }
+.os-two > * { min-width: 0; }
+.os-scroll { overflow-x: auto; }
+.os-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-body); font-variant-numeric: tabular-nums; }
+.os-table th { text-align: left; font-family: var(--os-mono); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--color-fg-muted); padding: 6px 8px; border-bottom: 1px solid var(--os-blue); vertical-align: bottom; }
+.os-table td { padding: 7px 8px; border-bottom: 1px solid var(--color-border-line); vertical-align: middle; }
+.os-table .num, .os-table th.num { text-align: right; }
+.os-table td.c, .os-table th.c { text-align: center; }
+.os-heat th.c { min-width: 70px; }
+.os-cell { display: inline-block; min-width: 40px; padding: 4px 6px; border-radius: 2px; font-family: var(--os-mono); text-align: center; }
+.os-cell.hi { background: color-mix(in srgb, var(--os-blue) 20%, transparent); }
+.os-cell.mid { background: color-mix(in srgb, var(--color-warn) 24%, transparent); }
+.os-cell.lo { background: color-mix(in srgb, var(--color-bad) 28%, transparent); font-weight: 700; }
+.os-chip { display: inline-block; font-family: var(--os-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 2px; white-space: nowrap; border: 1px solid currentColor; }
+.os-chip.ok { color: var(--color-ok); } .os-chip.warn { color: var(--color-warn); } .os-chip.bad { color: var(--color-bad); } .os-chip.muted { color: var(--color-fg-muted); }
+.os-inline { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.os-track { height: 8px; background: color-mix(in srgb, var(--color-fg) 8%, transparent); border-radius: 1px; overflow: hidden; flex: none; width: 72px; }
+.os-fill { height: 100%; }
+.os-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.os-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.os-sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.os-bars { display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
+.os-bar-row { display: grid; grid-template-columns: minmax(120px, 240px) 1fr 56px; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-body); }
+.os-bar-track { height: 16px; background: color-mix(in srgb, var(--color-fg) 6%, transparent); border-radius: 1px; overflow: hidden; display: flex; }
+.os-bar-fill { height: 100%; }
+.os-bar-val { text-align: right; font-family: var(--os-mono); font-variant-numeric: tabular-nums; }
+.os-funnel { display: flex; flex-direction: column; gap: 10px; }
+.os-funnel-row { display: grid; grid-template-columns: 130px 1fr; gap: var(--cds-gap-sm); align-items: center; }
+.os-funnel-bar { height: 34px; background: #1F4BFF; color: var(--os-on-blue); display: flex; align-items: center; padding: 0 10px; font-family: var(--os-mono); font-weight: 700; border-radius: 1px; min-width: 64px; box-sizing: border-box; white-space: nowrap; }
+.os-funnel-bar small { font-weight: 400; opacity: .8; margin-left: 8px; }
+.os-chart { position: relative; min-height: 260px; }
+.os-chart svg { display: block; }
+.os-chart text { font-size: var(--cds-font-size-caption); fill: var(--cds-text-secondary); }
+.os-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: var(--os-sharp); padding: 8px 10px; font-size: var(--cds-font-size-caption); max-width: 260px; z-index: 2; }
+.os-tip b { display: block; margin-bottom: 2px; }
+.os-tip div { color: var(--cds-text-secondary); }
+.os-comments { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--cds-gap-sm); padding: 0; margin: 0; list-style: none; }
+.os-comments li { border: 1px solid var(--color-border-line); border-left: 3px solid var(--os-cyan); border-radius: var(--os-sharp); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--color-panel); }
+.os-comments .meta { font-family: var(--os-mono); font-size: 11px; color: var(--color-fg-muted); text-transform: uppercase; letter-spacing: .04em; }
+.os details { font-size: var(--cds-font-size-body); border-top: 1px solid var(--color-border-line); padding-top: var(--cds-pad-md); }
+.os details summary { cursor: pointer; font-family: var(--os-mono); text-transform: uppercase; letter-spacing: .06em; font-size: var(--cds-font-size-caption); }
+.os dl { display: grid; grid-template-columns: minmax(140px, 240px) 1fr; gap: 6px 16px; margin: var(--cds-gap-md) 0 0; }
+.os dt { font-weight: 600; } .os dd { margin: 0; color: var(--color-fg-muted); }
+@media (max-width: 560px) {
+  .os-bar-row { grid-template-columns: 1fr 56px; }
+  .os-bar-row .os-bar-track { grid-column: 1 / -1; grid-row: 2; }
+  .os-funnel-row { grid-template-columns: 1fr; }
+  .os dl { grid-template-columns: 1fr; }
+  .os-tab { padding: 8px 10px; font-size: var(--cds-font-size-caption); }
+}
+[data-dash-source-state=refreshing] { opacity: .5; }
+</style>
+
+<div class="os">
+  <header class="os-band" id="top">
+    <span class="os-eyebrow">ФТМИ / Feedback analytics / осень 2026–27 / демо-данные</span>
+    <h1>Обратная связь по дисциплинам</h1>
+    <p class="os-lead">Анкету заполнили <b data-draw="t-rr" data-source="kpi" data-field="rr" data-row="0">—</b> записавшихся (<b data-draw="t-resp" data-source="kpi" data-field="responses" data-row="0">—</b> из <b data-draw="t-enr" data-source="kpi" data-field="enrolled" data-row="0">—</b>). Критичных сигналов: <b data-draw="t-crit" data-source="kpi" data-field="crit" data-row="0">—</b>, требуют внимания: <b data-draw="t-warn" data-source="kpi" data-field="warn" data-row="0">—</b>.</p>
+  </header>
+
+  <div class="os-controls" id="filters">
+    <div class="os-filters">
+      <select class="dash-select" id="f-program" data-draw="f-program" aria-label="Программа" data-source="groups"></select>
+      <select class="dash-select" id="f-course" data-draw="f-course" aria-label="Дисциплина" data-source="groups"></select>
+      <select class="dash-select" id="f-teacher" data-draw="f-teacher" aria-label="Преподаватель" data-source="groups"></select>
+    </div>
+    <button type="button" class="os-btn" id="f-reset">Сбросить фильтры</button>
+  </div>
+
+  <nav class="os-tabs" role="tablist" aria-label="Разделы дашборда">
+    <button type="button" class="os-tab on" role="tab" aria-selected="true" aria-controls="general" data-tab="general"><span class="n">01</span>Общее</button>
+    <button type="button" class="os-tab" role="tab" aria-selected="false" aria-controls="students" data-tab="students"><span class="n">02</span>Студенты</button>
+    <button type="button" class="os-tab" role="tab" aria-selected="false" aria-controls="teachers" data-tab="teachers"><span class="n">03</span>Преподаватели</button>
+  </nav>
+
+  <!-- ============ ОБЩЕЕ ============ -->
+  <section class="os-page" id="general" role="tabpanel">
+    <div class="os-tiles">
+      <div class="os-tile"><span class="os-tile-label">Записались</span><span class="os-tile-value" data-draw="k-enrolled" data-source="kpi" data-field="enrolled" data-row="0">—</span><span class="os-tile-sub">по данным ИСУ</span></div>
+      <div class="os-tile"><span class="os-tile-label">Сдали</span><span class="os-tile-value" data-draw="k-passed" data-source="kpi" data-field="passed" data-row="0">—</span><span class="os-tile-sub"><span data-draw="k-passrate" data-source="kpi" data-field="pass_rate" data-row="0">—</span> от записавшихся</span></div>
+      <div class="os-tile"><span class="os-tile-label">Оставили ОС</span><span class="os-tile-value" data-draw="k-responses" data-source="kpi" data-field="responses" data-row="0">—</span><span class="os-tile-sub">по факту заполнения</span></div>
+      <div class="os-tile"><span class="os-tile-label">Доля ответов</span><span class="os-tile-value" data-draw="k-rr" data-source="kpi" data-field="rr" data-row="0">—</span><span class="os-tile-sub"><span data-draw="k-rrpass" data-source="kpi" data-field="rr_pass" data-row="0">—</span> от сдавших</span></div>
+      <div class="os-tile"><span class="os-tile-label">Индекс качества</span><span class="os-tile-value" data-draw="k-quality" data-source="kpi" data-field="quality_idx" data-row="0">—</span><span class="os-tile-sub">курс, полезность, преподавание</span></div>
+    </div>
+
+    <div class="os-two">
+      <section class="os-sec" id="funnel">
+        <div class="os-sec-head"><span class="os-tag">Охват</span><h2>Воронка: от записи до ОС</h2></div>
+        <div class="os-funnel" data-draw="funnel" data-source="kpi"></div>
+        <p class="os-muted">Ширина полосы — доля от записавшихся.</p>
+      </section>
+      <section class="os-sec" id="quality-rank">
+        <div class="os-sec-head"><span class="os-tag">Качество</span><h2>Индекс качества по дисциплинам</h2></div>
+        <div class="os-bars" data-draw="quality-bars" data-source="by_course"></div>
+        <p class="os-muted">Серым — дисциплины с долей ответов ниже 30%: в рейтинг они не входят.</p>
+      </section>
+    </div>
+
+    <section class="os-sec" id="response">
+      <div class="os-sec-head"><span class="os-tag">Заполняемость</span><h2>Доля ответов по группам</h2><p class="os-muted">Доля считается от записавшихся. Ниже 30% результаты группы показываются с пометкой о низкой достоверности.</p></div>
+      <div class="os-scroll">
+        <table class="os-table" data-source="filtered" data-row-key="key">
+          <thead><tr>
+            <th data-field="course">Дисциплина</th><th data-field="group">Группа</th><th data-field="teacher">Преподаватель</th>
+            <th class="num" data-field="enrolled">Записались</th><th class="num" data-field="passed">Сдали</th><th class="num" data-field="responses">Оставили ОС</th>
+            <th class="num" data-field="rr">Доля ответов</th><th data-field="reliability">Достоверность</th>
+          </tr></thead>
+          <tbody data-draw="resp-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="os-sec" id="signals">
+      <div class="os-sec-head"><span class="os-tag">Сигналы</span><h2>Что требует реакции</h2><p class="os-muted">Срабатывают автоматически по правилам из ТЗ: низкий охват, низкие оценки, разрыв между студентами и преподавателем, частый барьер, проблемы в командах, срочные сообщения.</p></div>
+      <div class="os-scroll">
+        <table class="os-table" data-source="signals" data-row-key="id">
+          <thead><tr><th data-field="level">Уровень</th><th data-field="where">Дисциплина · группа</th><th data-field="teacher">Преподаватель</th><th data-field="signal">Сигнал</th><th data-field="route">Кому передать</th></tr></thead>
+          <tbody data-draw="signal-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <!-- ============ СТУДЕНТЫ ============ -->
+  <section class="os-page" id="students" role="tabpanel" hidden>
+    <div class="os-tiles">
+      <div class="os-tile"><span class="os-tile-label">Оценка курса</span><span class="os-tile-value" data-draw="k-overall" data-source="kpi" data-field="overall" data-row="0">—</span><span class="os-tile-sub">из 5</span></div>
+      <div class="os-tile"><span class="os-tile-label">Полезность для профессии</span><span class="os-tile-value" data-draw="k-useful" data-source="kpi" data-field="usefulness" data-row="0">—</span><span class="os-tile-sub">из 5</span></div>
+      <div class="os-tile"><span class="os-tile-label">Удовлетворённость</span><span class="os-tile-value" data-draw="k-satisf" data-source="kpi" data-field="satisfaction" data-row="0">—</span><span class="os-tile-sub">из 5</span></div>
+      <div class="os-tile"><span class="os-tile-label">Новизна материала</span><span class="os-tile-value" data-draw="k-novelty" data-source="kpi" data-field="novelty" data-row="0">—</span><span class="os-tile-sub">из 5</span></div>
+      <div class="os-tile"><span class="os-tile-label">Ожидания оправдались</span><span class="os-tile-value" data-draw="k-expect" data-source="kpi" data-field="expect_yes" data-row="0">—</span><span class="os-tile-sub">ответили «Да»</span></div>
+    </div>
+
+    <section class="os-sec" id="course-scores">
+      <div class="os-sec-head"><span class="os-tag">Оценки курса</span><h2>Дисциплины по четырём оценкам</h2><p class="os-muted">Средние 1–5, взвешенные по числу ответов. Цвет: синий — 4 и выше, жёлтый — 3,5–3,9, красный — ниже 3,5.</p></div>
+      <div class="os-scroll">
+        <table class="os-table os-heat" data-source="by_course" data-row-key="course">
+          <thead><tr>
+            <th data-field="course">Дисциплина</th><th class="c" data-field="overall">Оценка курса</th><th class="c" data-field="satisfaction">Удовлетворённость</th>
+            <th class="c" data-field="usefulness">Полезность для профессии</th><th class="c" data-field="novelty">Новизна</th><th class="num" data-field="responses">Ответов</th>
+          </tr></thead>
+          <tbody data-draw="course-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="os-sec" id="expectations">
+      <div class="os-sec-head"><span class="os-tag">Ожидания</span><h2>Оправдались ли ожидания от курса</h2></div>
+      <div class="os-legend">
+        <span><i class="os-sw" style="background: var(--os-blue)"></i>Да</span>
+        <span><i class="os-sw" style="background: var(--os-cyan)"></i>Частично</span>
+        <span><i class="os-sw" style="background: var(--color-bad)"></i>Нет</span>
+        <span><i class="os-sw" style="background: var(--cds-chart-muted)"></i>Курс не был моим выбором</span>
+      </div>
+      <div class="os-bars" data-draw="expect-bars" data-source="filtered"></div>
+    </section>
+
+    <div class="os-two">
+      <section class="os-sec" id="difficulty">
+        <div class="os-sec-head"><span class="os-tag">Сложность</span><h2>Насколько сложным был курс</h2><p class="os-muted">Среднее по шкале 1–5, где 3 — «в самый раз». Красным — группы, где курс оказался сложным (от 4).</p></div>
+        <div class="os-chart" data-draw="difficulty-dots" data-source="filtered"></div>
+      </section>
+      <section class="os-sec" id="barriers">
+        <div class="os-sec-head"><span class="os-tag">Барьеры</span><h2>Что мешало учиться</h2><p class="os-muted">Доля ответивших, отметивших пункт (до 3 вариантов). Красным — от 40%.</p></div>
+        <div class="os-bars" data-draw="barrier-bars" data-source="barrier_share"></div>
+      </section>
+    </div>
+
+    <section class="os-sec" id="group-climate">
+      <div class="os-sec-head"><span class="os-tag">Группа</span><h2>Атмосфера и командная работа глазами студентов</h2></div>
+      <div class="os-scroll">
+        <table class="os-table" data-source="filtered" data-row-key="key">
+          <thead><tr><th data-field="key">Дисциплина · группа</th><th class="num" data-field="atmosphere_st">Атмосфера в группе, 1–5</th><th class="num" data-field="team_issue">«Часть команды не работала»</th></tr></thead>
+          <tbody data-draw="climate-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="os-sec" id="comments">
+      <div class="os-sec-head"><span class="os-tag">Голос студентов</span><h2>Выборочные комментарии</h2></div>
+      <ul class="os-comments" data-draw="comment-list" data-source="comments_f"></ul>
+    </section>
+  </section>
+
+  <!-- ============ ПРЕПОДАВАТЕЛИ ============ -->
+  <section class="os-page" id="teachers" role="tabpanel" hidden>
+    <section class="os-sec" id="teaching">
+      <div class="os-sec-head"><span class="os-tag">Студенты о преподавателях</span><h2>Оценка по 7 критериям</h2><p class="os-muted">Среднее по ответам студентов, 1–5. «Не могу оценить» в расчёт не входит. Сортировка — от низкого индекса к высокому.</p></div>
+      <div class="os-scroll">
+        <table class="os-table os-heat" data-source="teachers" data-row-key="teacher">
+          <thead><tr>
+            <th data-field="teacher">Преподаватель</th>
+            <th class="c" data-field="t_atmosphere">Атмосфера</th><th class="c" data-field="t_digital">Цифровые инструменты</th><th class="c" data-field="t_preparedness">Подготовленность</th>
+            <th class="c" data-field="t_knowledge">Предметные знания</th><th class="c" data-field="t_timing">Тайминги</th><th class="c" data-field="t_engagement">Вовлечение</th>
+            <th class="c" data-field="t_structure">Структура</th><th class="c" data-field="teach_idx">Индекс</th><th class="num" data-field="responses">Ответов</th>
+          </tr></thead>
+          <tbody data-draw="heat-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="os-sec" id="group-profile">
+      <div class="os-sec-head"><span class="os-tag">Преподаватели о группах</span><h2>Профиль группы по 5 параметрам</h2><p class="os-muted">Из анкеты преподавателя, 1–5.</p></div>
+      <div class="os-scroll">
+        <table class="os-table os-heat" data-source="filtered" data-row-key="key">
+          <thead><tr>
+            <th data-field="key">Дисциплина · группа</th><th data-field="teacher">Преподаватель</th>
+            <th class="c" data-field="g_engagement">Вовлечённость</th><th class="c" data-field="g_homework">Подготовка к занятиям</th><th class="c" data-field="g_level">Входной уровень</th>
+            <th class="c" data-field="g_discipline">Дисциплина</th><th class="c" data-field="g_atmosphere">Атмосфера</th><th class="c" data-field="group_idx">Среднее</th>
+          </tr></thead>
+          <tbody data-draw="profile-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="os-legend" id="mirror-legend">
+      <span><i class="os-sw" style="background: var(--os-blue)"></i>Студенты</span>
+      <span><i class="os-sw" style="background: var(--os-violet)"></i>Преподаватель</span>
+      <span><i class="os-sw" style="background: var(--color-bad)"></i>Линия красная, если разрыв от 1 балла</span>
+    </div>
+    <div class="os-two">
+      <section class="os-sec" id="mirror-atmosphere">
+        <div class="os-sec-head"><span class="os-tag">Зеркальный вопрос</span><h2>Атмосфера: студенты и преподаватель</h2></div>
+        <div class="os-chart" data-draw="mirror-atm" data-source="filtered"></div>
+      </section>
+      <section class="os-sec" id="mirror-difficulty">
+        <div class="os-sec-head"><span class="os-tag">Зеркальный вопрос</span><h2>Сложность: студенты и преподаватель</h2></div>
+        <div class="os-chart" data-draw="mirror-diff" data-source="filtered"></div>
+      </section>
+    </div>
+
+    <section class="os-sec" id="diagnosis">
+      <div class="os-sec-head"><span class="os-tag">Диагностика</span><h2>Где проблема: студенты о преподавании и преподаватель о группе</h2><p class="os-muted">По горизонтали — индекс преподавания (студенты). По вертикали — средняя оценка группы преподавателем. Граница — 3,5. Размер точки — число ответов.</p></div>
+      <div class="os-legend">
+        <span><i class="os-sw" style="background: var(--cds-chart-muted)"></i>Норма</span>
+        <span><i class="os-sw" style="background: var(--color-warn)"></i>Проблема на стороне группы</span>
+        <span><i class="os-sw" style="background: var(--color-bad)"></i>Проблема в преподавании или системная</span>
+      </div>
+      <div class="os-chart" id="scatter" data-draw="scatter" data-source="filtered" style="min-height: 320px"></div>
+    </section>
+
+    <section class="os-sec" id="flags">
+      <div class="os-sec-head"><span class="os-tag">Отметки</span><h2>Студенты, которых выделили преподаватели</h2><p class="os-muted">Количество отметок по группам. ФИО видят только руководитель программы и куратор.</p></div>
+      <div class="os-scroll">
+        <table class="os-table" data-source="filtered" data-row-key="key">
+          <thead><tr>
+            <th data-field="key">Дисциплина · группа</th><th class="num" data-field="flag_strong">Сильные</th><th class="num" data-field="flag_assist">В ассистенты</th>
+            <th class="num" data-field="flag_growth">Рост</th><th class="num" data-field="flag_support">Нужна поддержка</th><th class="num" data-field="incidents">Инциденты</th>
+          </tr></thead>
+          <tbody data-draw="flag-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <details id="definitions">
+    <summary>Как считаются метрики</summary>
+    <dl>
+      <dt>Доля ответов</dt><dd>Оставили ОС / Записались. Дополнительно — Оставили ОС / Сдали.</dd>
+      <dt>Достоверность</dt><dd>Надёжно — доля ответов от 50%. Ограниченно — 30–49% и не меньше 10 ответов. Низкая — меньше 30% или меньше 10 ответов. При 5 ответах и меньше группа скрывается.</dd>
+      <dt>Индекс качества</dt><dd>Среднее из оценки курса, полезности для профессиональной деятельности и индекса преподавания.</dd>
+      <dt>Индекс преподавания</dt><dd>Среднее по 7 критериям: атмосфера, цифровые инструменты, подготовленность, предметные знания, тайминги, вовлечение, структура.</dd>
+      <dt>Оценка группы преподавателем</dt><dd>Среднее по 5 параметрам: вовлечённость, подготовка к занятиям, входной уровень, дисциплина, атмосфера.</dd>
+      <dt>Разрыв</dt><dd>Разница между средней оценкой студентов и оценкой преподавателя по одному и тому же вопросу. Сигнал при разнице от 1 балла.</dd>
+      <dt>Демо-данные</dt><dd>Все дисциплины, группы, преподаватели, оценки и комментарии придуманы для примера.</dd>
+    </dl>
+  </details>
+</div>
+
+<script>
+(() => {
+  const loc = d3.formatLocale({decimal: ',', thousands: ' ', grouping: [3], currency: ['', '']});
+  const ok = (v) => v != null && !isNaN(v);
+  window.osFmt = {
+    n1: (v) => ok(v) ? loc.format('.1f')(v) : '—',
+    int: (v) => ok(v) ? loc.format(',d')(v) : '—',
+    pct: (v) => ok(v) ? loc.format('.0%')(v) : '—',
+  };
+  window.osCrit = ['t_atmosphere', 't_digital', 't_preparedness', 't_knowledge', 't_timing', 't_engagement', 't_structure'];
+  window.osGp = ['g_engagement', 'g_homework', 'g_level', 'g_discipline', 'g_atmosphere'];
+  window.osLevel = (v) => v >= 4 ? 'hi' : (v >= 3.5 ? 'mid' : 'lo');
+  window.osShort = (r) => r.group + ' · ' + r.course.split(' ')[0];
+  window.osUI = {
+    td: (text, cls) => { const c = document.createElement('td'); if (cls) c.className = cls; c.textContent = text; return c; },
+    chip: (text, cls) => { const s = document.createElement('span'); s.className = 'os-chip ' + cls; s.textContent = text; return s; },
+    heat: (v, cls) => { const c = document.createElement('td'); c.className = cls || 'c'; const s = document.createElement('span'); s.className = 'os-cell ' + window.osLevel(v); s.textContent = window.osFmt.n1(v); c.append(s); return c; },
+    inlineBar: (share, color, text) => {
+      const c = document.createElement('td'); c.className = 'num';
+      const w = document.createElement('div'); w.className = 'os-inline';
+      const t = document.createElement('div'); t.className = 'os-track';
+      const f = document.createElement('div'); f.className = 'os-fill'; f.style.width = Math.max(0, Math.min(1, share)) * 100 + '%'; f.style.background = color;
+      t.append(f); const s = document.createElement('span'); s.textContent = text; w.append(t, s); c.append(w); return c;
+    },
+    status: (host, d, cols) => {
+      if (d.status === 'ok' && d.data) return d.data.length ? true : (window.osUI.msg(host, 'Нет данных по выбранным фильтрам', cols), false);
+      window.osUI.msg(host, d.status === 'error' ? 'Не удалось загрузить' : '—', cols); return false;
+    },
+    msg: (host, text, cols) => {
+      if (host.tagName === 'TBODY') { const tr = document.createElement('tr'); const c = window.osUI.td(text, 'os-muted'); c.colSpan = cols || 1; tr.append(c); host.append(tr); }
+      else if (host.tagName === 'UL') { const li = document.createElement('li'); li.textContent = text; host.append(li); }
+      else host.textContent = text;
+    },
+  };
+})();
+
+dash.calc('filtered', {
+  title: 'Группы с учётом фильтров',
+  description: 'Строки групп по выбранной программе, дисциплине и преподавателю, с долей ответов, индексами и меткой достоверности.',
+  inputs: ['groups'],
+  fn: (groups) => {
+    const p = dash.params();
+    const crit = ['t_atmosphere', 't_digital', 't_preparedness', 't_knowledge', 't_timing', 't_engagement', 't_structure'];
+    const gp = ['g_engagement', 'g_homework', 'g_level', 'g_discipline', 'g_atmosphere'];
+    const mean = (r, ks) => ks.reduce((s, k) => s + Number(r[k]), 0) / ks.length;
+    return groups
+      .filter((r) => (!p.program || r.program === p.program) && (!p.course || r.course === p.course) && (!p.teacher || r.teacher === p.teacher))
+      .map((r) => {
+        const o = {...r};
+        ['enrolled', 'passed', 'responses', 'flag_strong', 'flag_assist', 'flag_growth', 'flag_support', 'incidents'].forEach((k) => { o[k] = Number(r[k]); });
+        o.key = r.course + ' · ' + r.group;
+        o.rr = o.responses / o.enrolled;
+        o.rr_pass = o.responses / o.passed;
+        o.teach_idx = Math.round(mean(r, crit) * 100) / 100;
+        o.group_idx = Math.round(mean(r, gp) * 100) / 100;
+        o.reliability = o.responses <= 5 ? 'Скрыто' : (o.rr >= 0.5 ? 'Надёжно' : (o.rr >= 0.3 && o.responses >= 10 ? 'Ограниченно' : 'Низкая'));
+        return o;
+      });
+  },
+});
+
+dash.calc('by_course', {
+  title: 'Итоги по дисциплинам',
+  description: 'Охват и средние оценки по дисциплине, взвешенные по числу ответов; индекс качества = среднее (оценка курса, полезность, индекс преподавания).',
+  inputs: ['filtered'],
+  fn: (rows) => d3.groups(rows, (r) => r.course).map(([course, rs]) => {
+    const w = d3.sum(rs, (r) => r.responses), enrolled = d3.sum(rs, (r) => r.enrolled);
+    const wavg = (k) => Math.round(d3.sum(rs, (r) => Number(r[k]) * r.responses) / w * 100) / 100;
+    const o = {course, enrolled, responses: w, rr: w / enrolled, overall: wavg('overall'), satisfaction: wavg('satisfaction'), usefulness: wavg('usefulness'), novelty: wavg('novelty'), teach_idx: wavg('teach_idx')};
+    o.quality_idx = Math.round((o.overall + o.usefulness + o.teach_idx) / 3 * 100) / 100;
+    return o;
+  }).sort((a, b) => b.quality_idx - a.quality_idx),
+});
+
+dash.calc('signals', {
+  title: 'Сигналы по группам',
+  description: 'Правила из ТЗ: охват ниже 30%, индексы ниже 3,5 и 4, разрыв от 1 балла, барьер от 40%, проблемы в командах от 30%, срочные сообщения.',
+  inputs: ['filtered', 'barriers'],
+  fn: (rows, barriers) => {
+    const crit = ['t_atmosphere', 't_digital', 't_preparedness', 't_knowledge', 't_timing', 't_engagement', 't_structure'];
+    const names = {t_atmosphere: 'атмосфера', t_digital: 'цифровые инструменты', t_preparedness: 'подготовленность', t_knowledge: 'предметные знания', t_timing: 'тайминги', t_engagement: 'вовлечение', t_structure: 'структура'};
+    const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+    const out = [];
+    rows.forEach((r) => {
+      const add = (level, signal, route) => out.push({id: r.key + ' #' + (out.length + 1), level, where: r.key, teacher: r.teacher, signal, route});
+      const t = r.teach_idx, g = r.group_idx;
+      if (Number(r.urgent_st) > 0 || Number(r.urgent_t) > 0) add('Критично', 'Срочное сообщение: ' + [Number(r.urgent_st) > 0 ? 'студенты — «ситуация до сих пор мешает»' : null, Number(r.urgent_t) > 0 ? 'преподаватель — «нужна срочная реакция»' : null].filter(Boolean).join('; '), 'Руководитель программы');
+      let flagged = true;
+      if (t < 3.5 && g < 3.5) add('Критично', 'Системная проблема: студенты оценили преподавание на ' + f1(t) + ', преподаватель группу — на ' + f1(g), 'Руководитель программы и куратор');
+      else if (t < 3.5 && g >= 4) add('Критично', 'Проблема на стороне преподавания: индекс ' + f1(t) + ' при оценке группы ' + f1(g), 'Руководитель программы');
+      else if (g < 3.5 && t >= 4) add('Внимание', 'Проблема на стороне группы: преподаватель оценил группу на ' + f1(g) + ' при индексе преподавания ' + f1(t), 'Куратор группы');
+      else flagged = false;
+      if (!flagged) {
+        const low = crit.filter((k) => Number(r[k]) < 3.5);
+        if (low.length) add('Внимание', 'Низкие оценки: ' + low.map((k) => names[k] + ' ' + f1(Number(r[k]))).join(', '), 'Руководитель программы');
+      }
+      if (r.rr < 0.3) add('Внимание', 'Низкий охват: ответили ' + Math.round(r.rr * 100) + '% записавшихся', 'Лаборатория');
+      const gap = Number(r.difficulty_st) - Number(r.g_difficulty);
+      if (Math.abs(gap) >= 1) add('Внимание', 'Разрыв в оценке сложности: студенты ' + f1(Number(r.difficulty_st)) + ', преподаватель ' + f1(Number(r.g_difficulty)) + ' (3 — в самый раз)', 'Руководитель программы');
+      const agap = Number(r.atmosphere_st) - Number(r.g_atmosphere);
+      if (Math.abs(agap) >= 1) add('Внимание', 'Разрыв в оценке атмосферы: студенты ' + f1(Number(r.atmosphere_st)) + ', преподаватель ' + f1(Number(r.g_atmosphere)), 'Куратор группы');
+      barriers.filter((b) => b.course === r.course && b.group === r.group && b.barrier !== 'Ничего не мешало' && Number(b.count) / r.responses >= 0.4)
+        .forEach((b) => add('Внимание', '«' + b.barrier + '» отметили ' + Math.round(Number(b.count) / r.responses * 100) + '% ответивших', b.barrier === 'Атмосфера в группе' || b.barrier === 'Неравный вклад в командах' ? 'Куратор группы' : 'Руководитель программы'));
+      if (Number(r.team_issue) >= 0.3) add('Внимание', 'Командная работа: ' + Math.round(Number(r.team_issue) * 100) + '% ответили «часть команды почти не работала»', 'Преподаватель и куратор');
+    });
+    const order = {'Критично': 0, 'Внимание': 1};
+    return out.sort((a, b) => order[a.level] - order[b.level]);
+  },
+});
+
+dash.calc('kpi', {
+  title: 'Итоги по выбранным группам',
+  description: 'Суммы охвата, средние оценки (взвешенные по числу ответов), индекс качества и число сигналов.',
+  inputs: ['filtered', 'signals'],
+  fn: (rows, signals) => {
+    const sum = (k) => d3.sum(rows, (r) => r[k]);
+    const w = sum('responses');
+    const wavg = (k) => w ? Math.round(d3.sum(rows, (r) => Number(r[k]) * r.responses) / w * 100) / 100 : null;
+    const enrolled = sum('enrolled'), passed = sum('passed');
+    const o = {
+      enrolled, passed, responses: w,
+      pass_rate: enrolled ? passed / enrolled : null, rr: enrolled ? w / enrolled : null, rr_pass: passed ? w / passed : null,
+      overall: wavg('overall'), usefulness: wavg('usefulness'), satisfaction: wavg('satisfaction'), novelty: wavg('novelty'),
+      teach_idx: wavg('teach_idx'), expect_yes: wavg('expect_yes'),
+      crit: (signals || []).filter((s) => s.level === 'Критично').length,
+      warn: (signals || []).filter((s) => s.level === 'Внимание').length,
+    };
+    o.quality_idx = w ? Math.round((o.overall + o.usefulness + o.teach_idx) / 3 * 100) / 100 : null;
+    return [o];
+  },
+});
+
+dash.calc('teachers', {
+  title: 'Оценки преподавателей',
+  description: 'Среднее по 7 критериям для каждого преподавателя, взвешенное по числу ответов в его группах.',
+  inputs: ['filtered'],
+  fn: (rows) => {
+    const crit = ['t_atmosphere', 't_digital', 't_preparedness', 't_knowledge', 't_timing', 't_engagement', 't_structure'];
+    return d3.groups(rows, (r) => r.teacher).map(([teacher, rs]) => {
+      const w = d3.sum(rs, (r) => r.responses);
+      const o = {teacher, responses: w};
+      crit.forEach((k) => { o[k] = Math.round(d3.sum(rs, (r) => Number(r[k]) * r.responses) / w * 10) / 10; });
+      o.teach_idx = Math.round(d3.mean(crit, (k) => o[k]) * 10) / 10;
+      return o;
+    }).sort((a, b) => a.teach_idx - b.teach_idx);
+  },
+});
+
+dash.calc('barrier_share', {
+  title: 'Что мешало учиться',
+  description: 'Доля ответивших в выбранных группах, отметивших каждый барьер.',
+  inputs: ['barriers', 'filtered'],
+  fn: (barriers, rows) => {
+    const keys = new Set(rows.map((r) => r.course + '|' + r.group));
+    const total = d3.sum(rows, (r) => r.responses);
+    const picked = barriers.filter((b) => keys.has(b.course + '|' + b.group));
+    return d3.rollups(picked, (v) => d3.sum(v, (b) => Number(b.count)), (b) => b.barrier)
+      .map(([barrier, count]) => ({barrier, count, share: total ? count / total : 0}))
+      .sort((a, b) => (a.barrier === 'Ничего не мешало') - (b.barrier === 'Ничего не мешало') || b.share - a.share);
+  },
+});
+
+dash.calc('comments_f', {
+  title: 'Комментарии по фильтру',
+  description: 'Комментарии студентов из выбранных групп.',
+  inputs: ['comments', 'filtered'],
+  fn: (comments, rows) => {
+    const keys = new Set(rows.map((r) => r.course + '|' + r.group));
+    return comments.filter((c) => keys.has(c.course + '|' + c.group)).map((c, i) => ({id: i + 1, ...c}));
+  },
+});
+</script>
+
+<script>
+(() => {
+  const F = window.osFmt;
+  const one = (field, fmt) => (el) => {
+    const d = dash.data('kpi');
+    el.classList.toggle('dash-skeleton', d.status === 'loading');
+    el.textContent = (d.status === 'ok' && d.data && d.data[0]) ? fmt(d.data[0][field]) : '—';
+  };
+  [['t-rr', 'rr', F.pct], ['t-resp', 'responses', F.int], ['t-enr', 'enrolled', F.int], ['t-crit', 'crit', F.int], ['t-warn', 'warn', F.int],
+   ['k-enrolled', 'enrolled', F.int], ['k-passed', 'passed', F.int], ['k-passrate', 'pass_rate', F.pct], ['k-responses', 'responses', F.int],
+   ['k-rr', 'rr', F.pct], ['k-rrpass', 'rr_pass', F.pct], ['k-quality', 'quality_idx', F.n1], ['k-overall', 'overall', F.n1], ['k-useful', 'usefulness', F.n1],
+   ['k-satisf', 'satisfaction', F.n1], ['k-novelty', 'novelty', F.n1], ['k-expect', 'expect_yes', F.pct]]
+    .forEach(([name, field, fmt]) => dash.draw(name, one(field, fmt)));
+
+  const filterDraw = (param, all) => (sel) => {
+    const g = dash.data('groups');
+    const p = dash.params();
+    const rows = g.status === 'ok' ? g.data : [];
+    const scoped = rows.filter((r) => (param === 'program' || !p.program || r.program === p.program) && (param === 'course' || !p.course || r.course === p.course) && (param === 'teacher' || !p.teacher || r.teacher === p.teacher));
+    const vals = Array.from(new Set(scoped.map((r) => r[param]))).sort((a, b) => a.localeCompare(b, 'ru'));
+    sel.replaceChildren(new Option(all, ''), ...vals.map((v) => new Option(v, v)));
+    sel.value = p[param] && vals.includes(p[param]) ? p[param] : '';
+    sel.onchange = () => dash.setParams({[param]: sel.value || ''});
+  };
+  dash.draw('f-program', filterDraw('program', 'Все программы'));
+  dash.draw('f-course', filterDraw('course', 'Все дисциплины'));
+  dash.draw('f-teacher', filterDraw('teacher', 'Все преподаватели'));
+  document.querySelectorAll('#f-reset').forEach((b) => b.addEventListener('click', () => dash.resetParams()));
+
+  // Tabs
+  const open = (id) => {
+    const pages = document.querySelectorAll('.os-page');
+    if (!Array.from(pages).some((p) => p.id === id)) return;
+    pages.forEach((p) => { p.hidden = p.id !== id; });
+    document.querySelectorAll('.os-tab').forEach((t) => {
+      const on = t.getAttribute('data-tab') === id;
+      t.classList.toggle('on', on); t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    dash.setLink(id);
+  };
+  document.querySelectorAll('.os-tab').forEach((t) => t.addEventListener('click', () => open(t.getAttribute('data-tab'))));
+  const fromHash = () => {
+    const h = (location.hash || '').replace('#', '');
+    if (h === 'general' || h === 'students' || h === 'teachers') open(h);
+  };
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+
+<script>
+(() => {
+  const F = window.osFmt, U = window.osUI;
+
+  // ---------- ОБЩЕЕ
+  dash.draw('funnel', (el) => {
+    el.replaceChildren();
+    const d = dash.data('kpi');
+    if (d.status !== 'ok' || !d.data || !d.data[0]) { el.textContent = d.status === 'error' ? 'Не удалось загрузить' : '—'; return; }
+    const k = d.data[0];
+    [['Записались', k.enrolled, 'enrolled'], ['Сдали', k.passed, 'passed'], ['Оставили ОС', k.responses, 'responses']].forEach(([label, v, field], i) => {
+      const row = document.createElement('div'); row.className = 'os-funnel-row';
+      const l = document.createElement('span'); l.className = 'os-tile-label'; l.textContent = label;
+      const bar = document.createElement('div'); bar.className = 'os-funnel-bar';
+      bar.style.width = (k.enrolled ? v / k.enrolled * 100 : 0) + '%';
+      bar.style.opacity = String(1 - i * 0.18);
+      const n = document.createElement('span'); n.textContent = F.int(v);
+      n.dataset.source = 'kpi'; n.dataset.field = field; n.dataset.row = '0';
+      bar.append(n);
+      if (i) { const s = document.createElement('small'); s.textContent = F.pct(v / k.enrolled); bar.append(s); }
+      row.append(l, bar); el.append(row);
+    });
+  });
+
+  dash.draw('quality-bars', (el) => {
+    el.replaceChildren();
+    const d = dash.data('by_course');
+    if (!U.status(el, d)) return;
+    d.data.forEach((r) => {
+      const row = document.createElement('div'); row.className = 'os-bar-row';
+      const lab = document.createElement('span'); lab.textContent = r.course;
+      const track = document.createElement('div'); track.className = 'os-bar-track';
+      const fill = document.createElement('div'); fill.className = 'os-bar-fill';
+      fill.style.width = Math.max(0, (r.quality_idx - 1) / 4 * 100) + '%';
+      fill.style.background = r.rr < 0.3 ? 'var(--cds-chart-muted)' : (r.quality_idx < 3.5 ? 'var(--color-bad)' : 'var(--os-blue)');
+      track.append(fill);
+      const val = document.createElement('span'); val.className = 'os-bar-val'; val.textContent = F.n1(r.quality_idx);
+      val.dataset.source = 'by_course'; val.dataset.field = 'quality_idx'; val.dataset.where = 'course=' + encodeURIComponent(r.course);
+      row.append(lab, track, val); el.append(row);
+    });
+  });
+
+  dash.draw('resp-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('filtered');
+    if (!U.status(tb, d, 8)) return;
+    const relCls = {'Надёжно': 'ok', 'Ограниченно': 'warn', 'Низкая': 'bad', 'Скрыто': 'muted'};
+    d.data.slice().sort((a, b) => a.rr - b.rr).forEach((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.key;
+      const rel = document.createElement('td'); rel.append(U.chip(r.reliability, relCls[r.reliability] || 'muted'));
+      tr.append(U.td(r.course), U.td(r.group), U.td(r.teacher), U.td(F.int(r.enrolled), 'num'), U.td(F.int(r.passed), 'num'), U.td(F.int(r.responses), 'num'),
+        U.inlineBar(r.rr, r.rr < 0.3 ? 'var(--color-bad)' : (r.rr < 0.5 ? 'var(--color-warn)' : 'var(--os-blue)'), F.pct(r.rr)), rel);
+      tb.append(tr);
+    });
+  });
+
+  dash.draw('signal-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('signals');
+    if (d.status === 'ok' && d.data && !d.data.length) { U.msg(tb, 'Сигналов нет', 5); return; }
+    if (!U.status(tb, d, 5)) return;
+    d.data.forEach((s) => {
+      const tr = document.createElement('tr'); tr.dataset.key = s.id;
+      const lv = document.createElement('td'); lv.append(U.chip(s.level, s.level === 'Критично' ? 'bad' : 'warn'));
+      tr.append(lv, U.td(s.where), U.td(s.teacher), U.td(s.signal), U.td(s.route));
+      tb.append(tr);
+    });
+  });
+
+  // ---------- СТУДЕНТЫ
+  dash.draw('course-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('by_course');
+    if (!U.status(tb, d, 6)) return;
+    d.data.forEach((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.course;
+      tr.append(U.td(r.course), U.heat(r.overall), U.heat(r.satisfaction), U.heat(r.usefulness), U.heat(r.novelty), U.td(F.int(r.responses), 'num'));
+      tb.append(tr);
+    });
+  });
+
+  dash.draw('expect-bars', (el) => {
+    el.replaceChildren();
+    const d = dash.data('filtered');
+    if (!U.status(el, d)) return;
+    const segs = [['expect_yes', 'var(--os-blue)', 'Да'], ['expect_partial', 'var(--os-cyan)', 'Частично'], ['expect_no', 'var(--color-bad)', 'Нет'], ['not_my_choice', 'var(--cds-chart-muted)', 'Не мой выбор']];
+    d.data.slice().sort((a, b) => b.expect_yes - a.expect_yes).forEach((r) => {
+      const row = document.createElement('div'); row.className = 'os-bar-row';
+      const lab = document.createElement('span'); lab.textContent = r.key;
+      const track = document.createElement('div'); track.className = 'os-bar-track';
+      segs.forEach(([k, color, name]) => {
+        const s = document.createElement('div'); s.className = 'os-bar-fill';
+        s.style.width = Math.max(0, Number(r[k])) * 100 + '%'; s.style.background = color;
+        s.setAttribute('aria-label', name + ': ' + F.pct(Number(r[k])));
+        track.append(s);
+      });
+      const val = document.createElement('span'); val.className = 'os-bar-val'; val.textContent = F.pct(Number(r.expect_yes));
+      val.dataset.source = 'filtered'; val.dataset.field = 'expect_yes'; val.dataset.where = 'key=' + encodeURIComponent(r.key);
+      row.append(lab, track, val); el.append(row);
+    });
+  });
+
+  dash.draw('barrier-bars', (el) => {
+    el.replaceChildren();
+    const d = dash.data('barrier_share');
+    if (!U.status(el, d)) return;
+    const max = Math.max(0.5, d3.max(d.data, (r) => r.share));
+    d.data.forEach((r) => {
+      const row = document.createElement('div'); row.className = 'os-bar-row';
+      const lab = document.createElement('span'); lab.textContent = r.barrier;
+      const track = document.createElement('div'); track.className = 'os-bar-track';
+      const fill = document.createElement('div'); fill.className = 'os-bar-fill';
+      fill.style.width = (r.share / max * 100) + '%';
+      fill.style.background = r.barrier === 'Ничего не мешало' ? 'var(--cds-chart-muted)' : (r.share >= 0.4 ? 'var(--color-bad)' : 'var(--os-cyan)');
+      track.append(fill);
+      const val = document.createElement('span'); val.className = 'os-bar-val'; val.textContent = F.pct(r.share);
+      val.dataset.source = 'barrier_share'; val.dataset.field = 'share'; val.dataset.where = 'barrier=' + encodeURIComponent(r.barrier);
+      row.append(lab, track, val); el.append(row);
+    });
+  });
+
+  dash.draw('climate-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('filtered');
+    if (!U.status(tb, d, 3)) return;
+    d.data.slice().sort((a, b) => Number(a.atmosphere_st) - Number(b.atmosphere_st)).forEach((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.key;
+      const a = Number(r.atmosphere_st), t = Number(r.team_issue);
+      tr.append(U.td(r.key),
+        U.inlineBar((a - 1) / 4, a < 3.5 ? 'var(--color-bad)' : 'var(--os-blue)', F.n1(a)),
+        U.inlineBar(t / 0.5, t >= 0.3 ? 'var(--color-bad)' : 'var(--os-cyan)', F.pct(t)));
+      tb.append(tr);
+    });
+  });
+
+  dash.draw('comment-list', (ul) => {
+    ul.replaceChildren();
+    const d = dash.data('comments_f');
+    if (d.status === 'ok' && d.data && !d.data.length) { U.msg(ul, 'Комментариев по выбранным группам нет'); return; }
+    if (!U.status(ul, d)) return;
+    d.data.forEach((c) => {
+      const li = document.createElement('li');
+      const m = document.createElement('span'); m.className = 'meta'; m.textContent = c.type + ' · ' + c.course + ' · ' + c.group;
+      const t = document.createElement('span'); t.textContent = c.text;
+      li.append(m, t); ul.append(li);
+    });
+  });
+
+  // Dot / dumbbell chart shared by difficulty and mirror charts
+  const dotChart = (el, rows, opt) => {
+    el.replaceChildren();
+    const W = Math.max(280, el.clientWidth);
+    const rowH = 28, m = {top: 24, right: 20, bottom: 32, left: Math.min(170, Math.round(W * 0.38))};
+    const H = m.top + m.bottom + rows.length * rowH;
+    const x = d3.scaleLinear().domain([1, 5]).range([m.left, W - m.right]);
+    const y = d3.scaleBand().domain(rows.map((r) => r.key)).range([m.top, H - m.bottom]).padding(0.3);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', opt.aria);
+    svg.append('g').selectAll('line').data(d3.range(1, 5.01, 0.5)).join('line')
+      .attr('x1', (v) => x(v)).attr('x2', (v) => x(v)).attr('y1', m.top - 6).attr('y2', H - m.bottom).style('stroke', 'var(--cds-chart-grid)');
+    if (opt.ref != null) {
+      svg.append('line').attr('x1', x(opt.ref)).attr('x2', x(opt.ref)).attr('y1', m.top - 10).attr('y2', H - m.bottom).style('stroke', 'var(--cds-chart-reference)').style('stroke-dasharray', '4 3');
+      svg.append('text').attr('x', x(opt.ref)).attr('y', m.top - 12).attr('text-anchor', 'middle').text(opt.refLabel);
+    }
+    const ax = svg.append('g').attr('transform', `translate(0,${H - m.bottom})`).call(d3.axisBottom(x).ticks(5).tickFormat(d3.format('d')));
+    ax.selectAll('path,line').style('stroke', 'var(--cds-chart-axis)'); ax.selectAll('text').style('fill', 'var(--cds-text-secondary)');
+    const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', (r) => `translate(0,${y(r.key) + y.bandwidth() / 2})`);
+    g.append('text').attr('x', m.left - 10).attr('y', 4).attr('text-anchor', 'end').text((r) => window.osShort(r));
+    const tip = document.createElement('div'); tip.className = 'os-tip'; tip.hidden = true; el.append(tip);
+    const show = (ev, r) => {
+      tip.replaceChildren();
+      const b = document.createElement('b'); b.textContent = r.key; tip.append(b);
+      opt.tip(r).forEach((t) => { const dv = document.createElement('div'); dv.textContent = t; tip.append(dv); });
+      tip.hidden = false;
+      const [px, py] = d3.pointer(ev, el);
+      tip.style.left = Math.max(0, Math.min(el.clientWidth - tip.offsetWidth, px + 12)) + 'px';
+      tip.style.top = Math.max(0, py - tip.offsetHeight - 10) + 'px';
+    };
+    g.append('rect').attr('x', 0).attr('y', -y.bandwidth() / 2 - 2).attr('width', W).attr('height', y.bandwidth() + 4).style('fill', 'transparent')
+      .on('pointerenter pointermove', show).on('pointerleave', () => { tip.hidden = true; });
+    opt.draw(g, x);
+  };
+
+  dash.draw('difficulty-dots', (el) => {
+    const d = dash.data('filtered');
+    el.replaceChildren();
+    if (!U.status(el, d)) return;
+    const rows = d.data.slice().sort((a, b) => Number(b.difficulty_st) - Number(a.difficulty_st));
+    dotChart(el, rows, {
+      aria: 'Средняя сложность курса по группам по шкале от 1 до 5', ref: 3, refLabel: 'в самый раз',
+      tip: (r) => ['Студенты: ' + F.n1(Number(r.difficulty_st)), 'Преподаватель: ' + F.n1(Number(r.g_difficulty))],
+      draw: (g, x) => {
+        g.append('line').attr('x1', x(3)).attr('x2', (r) => x(Number(r.difficulty_st))).style('stroke', 'var(--cds-chart-axis)').style('stroke-width', 2).style('pointer-events', 'none');
+        g.append('circle').attr('cx', (r) => x(Number(r.difficulty_st))).attr('r', 6).style('pointer-events', 'none')
+          .style('fill', (r) => Number(r.difficulty_st) >= 4 ? 'var(--color-bad)' : 'var(--os-blue)');
+        g.append('text').attr('x', (r) => x(Number(r.difficulty_st)) + 10).attr('y', 4).style('pointer-events', 'none').text((r) => F.n1(Number(r.difficulty_st)));
+      },
+    });
+  });
+
+  // ---------- ПРЕПОДАВАТЕЛИ
+  dash.draw('heat-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('teachers');
+    if (!U.status(tb, d, 10)) return;
+    d.data.forEach((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.teacher;
+      tr.append(U.td(r.teacher));
+      [...window.osCrit, 'teach_idx'].forEach((k) => tr.append(U.heat(r[k])));
+      tr.append(U.td(F.int(r.responses), 'num'));
+      tb.append(tr);
+    });
+  });
+
+  dash.draw('profile-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('filtered');
+    if (!U.status(tb, d, 8)) return;
+    d.data.slice().sort((a, b) => a.group_idx - b.group_idx).forEach((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.key;
+      tr.append(U.td(r.key), U.td(r.teacher));
+      [...window.osGp, 'group_idx'].forEach((k) => tr.append(U.heat(Number(r[k]))));
+      tb.append(tr);
+    });
+  });
+
+  const mirror = (fs, ft, label, ref) => (el) => {
+    const d = dash.data('filtered');
+    el.replaceChildren();
+    if (!U.status(el, d)) return;
+    const rows = d.data.slice().sort((a, b) => Math.abs(Number(b[fs]) - Number(b[ft])) - Math.abs(Number(a[fs]) - Number(a[ft])));
+    dotChart(el, rows, {
+      aria: label + ': оценка студентов и преподавателя по каждой группе, шкала 1–5', ref, refLabel: ref ? 'в самый раз' : '',
+      tip: (r) => ['Студенты: ' + F.n1(Number(r[fs])), 'Преподаватель: ' + F.n1(Number(r[ft])), 'Разрыв: ' + F.n1(Number(r[fs]) - Number(r[ft]))],
+      draw: (g, x) => {
+        const big = (r) => Math.abs(Number(r[fs]) - Number(r[ft])) >= 1;
+        g.append('line').attr('x1', (r) => x(Number(r[fs]))).attr('x2', (r) => x(Number(r[ft]))).style('pointer-events', 'none')
+          .style('stroke', (r) => big(r) ? 'var(--color-bad)' : 'var(--cds-chart-axis)').style('stroke-width', (r) => big(r) ? 3 : 2);
+        g.append('circle').attr('cx', (r) => x(Number(r[fs]))).attr('r', 6).style('fill', 'var(--os-blue)').style('pointer-events', 'none');
+        g.append('circle').attr('cx', (r) => x(Number(r[ft]))).attr('r', 6).style('fill', 'var(--os-violet)').style('pointer-events', 'none');
+      },
+    });
+  };
+  dash.draw('mirror-atm', mirror('atmosphere_st', 'g_atmosphere', 'Атмосфера в группе', null));
+  dash.draw('mirror-diff', mirror('difficulty_st', 'g_difficulty', 'Сложность курса', 3));
+
+  dash.draw('scatter', (el) => {
+    el.replaceChildren();
+    const d = dash.data('filtered');
+    if (!U.status(el, d)) return;
+    const W = Math.max(280, el.clientWidth), H = Math.round(Math.min(440, Math.max(300, W * 0.55)));
+    const m = {top: 16, right: 16, bottom: 44, left: 48};
+    const x = d3.scaleLinear().domain([2, 5]).range([m.left, W - m.right]);
+    const y = d3.scaleLinear().domain([2, 5]).range([H - m.bottom, m.top]);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img')
+      .attr('aria-label', 'Точечная диаграмма групп: оценка преподавания студентами против оценки группы преподавателем');
+    const T = 3.5;
+    const quads = [
+      {x0: 2, x1: T, y0: T, y1: 5, label: 'Проблема в преподавании', color: 'var(--color-bad)', ax: 'start', px: 2, py: 5},
+      {x0: T, x1: 5, y0: T, y1: 5, label: 'Норма', color: 'var(--os-blue)', ax: 'end', px: 5, py: 5},
+      {x0: 2, x1: T, y0: 2, y1: T, label: 'Системная проблема', color: 'var(--color-bad)', ax: 'start', px: 2, py: 2},
+      {x0: T, x1: 5, y0: 2, y1: T, label: 'Проблема в группе', color: 'var(--color-warn)', ax: 'end', px: 5, py: 2},
+    ];
+    svg.append('g').selectAll('rect').data(quads).join('rect')
+      .attr('x', (q) => x(q.x0)).attr('y', (q) => y(q.y1)).attr('width', (q) => x(q.x1) - x(q.x0)).attr('height', (q) => y(q.y0) - y(q.y1))
+      .style('fill', (q) => q.color).style('opacity', 0.07);
+    svg.append('g').selectAll('text').data(quads).join('text')
+      .attr('x', (q) => x(q.px) + (q.ax === 'start' ? 8 : -8)).attr('y', (q) => q.py === 5 ? y(5) + 16 : y(2) - 8)
+      .attr('text-anchor', (q) => q.ax).style('font-weight', 600).text((q) => q.label);
+    const gx = svg.append('g').attr('transform', `translate(0,${H - m.bottom})`).call(d3.axisBottom(x).ticks(6).tickFormat(F.n1));
+    const gy = svg.append('g').attr('transform', `translate(${m.left},0)`).call(d3.axisLeft(y).ticks(6).tickFormat(F.n1));
+    [gx, gy].forEach((g) => { g.selectAll('path,line').style('stroke', 'var(--cds-chart-axis)'); g.selectAll('text').style('fill', 'var(--cds-text-secondary)'); });
+    svg.append('line').attr('x1', x(T)).attr('x2', x(T)).attr('y1', y(2)).attr('y2', y(5)).style('stroke', 'var(--cds-chart-reference)').style('stroke-dasharray', '4 4');
+    svg.append('line').attr('y1', y(T)).attr('y2', y(T)).attr('x1', x(2)).attr('x2', x(5)).style('stroke', 'var(--cds-chart-reference)').style('stroke-dasharray', '4 4');
+    svg.append('text').attr('x', (m.left + W - m.right) / 2).attr('y', H - 8).attr('text-anchor', 'middle').text('Студенты о преподавании (индекс)');
+    svg.append('text').attr('transform', `translate(14,${(m.top + H - m.bottom) / 2}) rotate(-90)`).attr('text-anchor', 'middle').text('Преподаватель о группе');
+    const color = (r) => (r.teach_idx < T) ? 'var(--color-bad)' : (r.group_idx < T ? 'var(--color-warn)' : 'var(--os-blue)');
+    const tip = document.createElement('div'); tip.className = 'os-tip'; tip.hidden = true; el.append(tip);
+    const clamp = (v) => Math.max(2.05, Math.min(4.95, v));
+    const pts = svg.append('g').selectAll('g').data(d.data).join('g').attr('transform', (r) => `translate(${x(clamp(r.teach_idx))},${y(clamp(r.group_idx))})`);
+    pts.append('circle').attr('r', (r) => 4 + Math.sqrt(r.responses) * 1.4).style('fill', color).style('fill-opacity', 0.75)
+      .style('stroke', 'var(--color-bg)').style('stroke-width', 1.5).style('cursor', 'pointer')
+      .on('pointerenter pointermove', (ev, r) => {
+        tip.replaceChildren();
+        const b = document.createElement('b'); b.textContent = r.key;
+        const l = (t) => { const z = document.createElement('div'); z.textContent = t; return z; };
+        tip.append(b, l(r.teacher), l('Индекс преподавания: ' + F.n1(r.teach_idx)), l('Оценка группы преподавателем: ' + F.n1(r.group_idx)), l('Ответов: ' + r.responses + ' из ' + r.enrolled + ' (' + F.pct(r.rr) + ')'));
+        tip.hidden = false;
+        const [px, py] = d3.pointer(ev, el);
+        tip.style.left = Math.max(0, Math.min(el.clientWidth - tip.offsetWidth, px + 12)) + 'px';
+        tip.style.top = Math.max(0, py - tip.offsetHeight - 10) + 'px';
+      })
+      .on('pointerleave', () => { tip.hidden = true; });
+    pts.filter((r) => r.teach_idx < T || r.group_idx < T).append('text')
+      .attr('x', (r) => 7 + Math.sqrt(r.responses) * 1.4).attr('y', 4).text((r) => window.osShort(r));
+  });
+
+  dash.draw('flag-rows', (tb) => {
+    tb.replaceChildren();
+    const d = dash.data('filtered');
+    if (!U.status(tb, d, 6)) return;
+    d.data.slice().sort((a, b) => b.flag_support - a.flag_support).forEach((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.key;
+      tr.append(U.td(r.key), U.td(F.int(r.flag_strong), 'num'), U.td(F.int(r.flag_assist), 'num'), U.td(F.int(r.flag_growth), 'num'), U.td(F.int(r.flag_support), 'num'), U.td(F.int(r.incidents), 'num'));
+      tb.append(tr);
+    });
+  });
+})();
+</script>
+
+<p class="os-foot">Прототип на демо-данных: дисциплины, группы, преподаватели, оценки и комментарии придуманы для примера.</p>
+</div>
+</body>
+</html>
